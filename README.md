@@ -8,7 +8,8 @@ The target is Kalshi's `KXHIGHCHI` market: the day's maximum temperature at **Ch
 
 - [x] Kalshi price backfill: `scripts/kalshi_backfill.py`
 - [ ] Daily logger: forecasts, prices and order book at fixed decision times
-- [ ] Observed daily highs at Midway, for climatology
+- [ ] Observed NWS daily highs at Midway, for climatology and labels: `scripts/nws_daily_backfill.py` (written, not yet run)
+- [ ] Settlement agreement check, Kalshi vs NWS: `scripts/check_settlement.py` (written, not yet run)
 - [ ] NBM forecasts as issued
 - [ ] Baselines: climatology, NWS forecast + historical error spread, market prices
 - [ ] Model and calibration
@@ -50,6 +51,22 @@ Decision times are `D<offset>@HH:MM` in Chicago time, relative to the market's d
 
 This writes `data/kalshi_KXHIGHCHI.csv`, with one row per temperature bracket, per day, per decision time. Each row has the bracket's bounds, how it settled, the bid and ask at the decision time, and a market-implied probability (each day's brackets sum to 1). Prices come only from candlesticks that ended at or before the decision time, so nothing from later in the day leaks in. No API key is needed. Raw responses are cached in `data/raw/kalshi/`, so reruns are fast.
 
+## NWS daily highs
+
+```bash
+python scripts/nws_daily_backfill.py
+```
+
+This downloads Midway's official NWS daily highs and lows from 1991 to yesterday, from [RCC-ACIS](https://www.rcc-acis.org/), and writes `data/nws_daily_MDW.csv`. One request covers the whole range. Use `--sid` for another station and `--start`/`--end` for other dates. The summary lists any years with more than 5% of days missing.
+
+## Settlement agreement check
+
+```bash
+python scripts/check_settlement.py
+```
+
+The model trains on decades of NWS highs, but current markets settle on The Weather Company. This compares the temperature each Kalshi day settled on with the NWS high for that day, separately for each settlement source, and writes `data/settlement_check.csv`. It reports exact matches, whether the NWS high falls inside the bracket that settled YES, and whether mismatches cluster in daylight saving time. A cluster there would mean The Weather Company's day boundary differs from the NWS's local-standard-time day.
+
 ## Tests
 
 ```bash
@@ -57,4 +74,4 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The tests run offline against a fake Kalshi client.
+The tests run offline against fake Kalshi and ACIS responses.
