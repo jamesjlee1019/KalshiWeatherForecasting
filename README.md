@@ -1,6 +1,16 @@
 # Kalshi Weather Forecasting
 
-Probabilistic forecasts of Chicago's daily high temperature, scored against Kalshi's market prices for the same day.
+A calibrated probabilistic forecast of Chicago's daily high temperature, built with machine learning on public weather data. It is evaluated on days the model never saw against climatology, the NWS forecast and Kalshi's market prices, before and after trading costs.
+
+## Goal
+
+- **Must:** a leak-free pipeline, and a calibrated model that beats climatology and the NWS-forecast baseline on log loss.
+- **Target:** measure the gap to Kalshi's market at two decision times (4 p.m. the day before, 8 a.m. on the day), with bootstrap confidence intervals over days.
+- **Stretch:** find conditions where the model beats the market, such as extreme brackets, thin day-before trading or fast reaction to new forecast runs, and test whether that edge survives fees.
+
+Prior work found that Kalshi's weather prices beat free public forecasts once fees are counted ([arXiv](https://arxiv.org/html/2609.23969v1), [kalshi-edge](https://github.com/k1hbles/kalshi-edge)). So the market comparison here is something to measure, not a result to assume.
+
+## Market
 
 The target is Kalshi's `KXHIGHCHI` market: the day's maximum temperature at **Chicago Midway** (`CLIMDW`). Current markets settle on The Weather Company's reading for that station. Older markets settled on the National Weather Service Daily Climate Report for Midway; the switch was reported as August 14, 2026. The backfill records which rule each market used in a `settlement_source` column. The NWS climate day runs midnight to midnight in local *standard* time, so during daylight saving time it is 1 a.m. to 1 a.m. on the clock.
 
