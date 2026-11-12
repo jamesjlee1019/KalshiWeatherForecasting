@@ -35,6 +35,21 @@ def test_decision_time_follows_daylight_saving():
     assert winter.astimezone(timezone.utc).hour == 14  # CST is UTC-6
 
 
+def test_command_line_accepts_decision_times_before_the_day():
+    # Regression test: a bare "-1@16:00" was read as an unknown option.
+    args = kb.build_parser().parse_args(
+        ["--series", "KXHIGHCHI", "--decision", "D0@08:00", "D-1@16:00"])
+    assert [(d.day_offset, d.hour, d.minute) for d in args.decision] == [(0, 8, 0), (-1, 16, 0)]
+    assert [d.label for d in args.decision] == ["D0@08:00", "D-1@16:00"]
+
+
+def test_decision_labels_are_normalized():
+    assert kb.parse_decision("0@8:00").label == "D0@08:00"
+    assert kb.parse_decision("d-2@23:59").day_offset == -2
+    with pytest.raises(Exception):
+        kb.parse_decision("D0@25:00")
+
+
 def test_snapshot_never_uses_a_candle_that_ends_after_the_decision():
     decision_ts = 1_000_000
     candles = [{"end_ts": decision_ts - 3600, "tag": "earlier"},
