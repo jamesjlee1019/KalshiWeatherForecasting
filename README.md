@@ -19,9 +19,20 @@ The target is Kalshi's `KXHIGHCHI` market: the day's maximum temperature at **Ch
 
 Requires Python 3.9+.
 
+macOS / Linux:
+
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Windows (PowerShell):
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # only if activation is blocked; lasts for this window
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
