@@ -1,0 +1,17 @@
+# Downloaded and generated data stays local
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets
+.env

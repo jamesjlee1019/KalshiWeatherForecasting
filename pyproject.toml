@@ -1,0 +1,9 @@
+[project]
+name = "kalshi-weather-forecasting"
+version = "0.1.0"
+description = "Forecast Chicago's daily high temperature and compare against Kalshi market prices."
+requires-python = ">=3.9"
+
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+testpaths = ["tests"]
