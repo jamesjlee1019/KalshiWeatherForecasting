@@ -2,7 +2,7 @@
 
 Probabilistic forecasts of Chicago's daily high temperature, scored against Kalshi's market prices for the same day.
 
-The target is Kalshi's `KXHIGHCHI` market, which settles on the maximum temperature in the National Weather Service Daily Climate Report for **Chicago Midway**. The NWS climate day runs midnight to midnight in local *standard* time, so during daylight saving time it is 1 a.m. to 1 a.m. on the clock.
+The target is Kalshi's `KXHIGHCHI` market: the day's maximum temperature at **Chicago Midway** (`CLIMDW`). Current markets settle on The Weather Company's reading for that station. Older markets settled on the National Weather Service Daily Climate Report for Midway; the switch was reported as August 14, 2026. The backfill records which rule each market used in a `settlement_source` column. The NWS climate day runs midnight to midnight in local *standard* time, so during daylight saving time it is 1 a.m. to 1 a.m. on the clock.
 
 ## Status
 

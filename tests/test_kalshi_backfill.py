@@ -45,6 +45,19 @@ def test_snapshot_never_uses_a_candle_that_ends_after_the_decision():
     assert kb.snapshot_at(candles, decision_ts - 7200) is None
 
 
+@pytest.mark.parametrize("rule, expected", [
+    ("If the maximum temperature recorded at Chicago (CLIMDW) for Nov 4, 2026, is between "
+     "63-64° fahrenheit according to The Weather Company, then the market resolves to Yes.",
+     "weather_company"),
+    ("If the highest temperature recorded in Chicago Midway for Jun 3, 2025 as reported by the "
+     "National Weather Service's Climatological Report (Daily), is between 80-81°, ...", "nws"),
+    ("", "unknown"),
+    (None, "unknown"),
+])
+def test_settlement_source(rule, expected):
+    assert kb.settlement_source(rule) == expected
+
+
 def test_implied_probs_left_blank_when_a_bracket_has_no_quote():
     rows = [{"event_ticker": "E", "decision": "d", "mid": 0.5},
             {"event_ticker": "E", "decision": "d", "mid": None}]
@@ -65,7 +78,8 @@ class FakeClient:
                         "strike_type": strike_type, "floor_strike": floor, "cap_strike": cap,
                         "result": result, "expiration_value": "55",
                         "open_time": "2026-11-08T15:00:00Z",
-                        "close_time": "2026-11-11T05:00:00Z"}
+                        "close_time": "2026-11-11T05:00:00Z",
+                        "rules_primary": "... according to The Weather Company, ..."}
             return {"markets": [market("LOW", "less", None, 54, "no"),
                                 market("MID", "between", 54, 55, "yes"),
                                 market("HIGH", "greater", 55, None, "no")], "cursor": ""}
@@ -89,6 +103,9 @@ def test_end_to_end_with_fake_client(tmp_path):
 
     assert summary["days_without_exactly_one_yes"] == 0
     assert summary["brackets_inconsistent_with_settlement"] == 0
+    assert summary["first_day"] == summary["last_day"] == "2026-11-10"
+    assert summary["markets_by_settlement_source"] == {"weather_company": 3}
+    assert {r["settlement_source"] for r in rows} == {"weather_company"}
     assert [r["market_ticker"] for r in rows] == ["LOW", "MID", "HIGH"]
     assert all(float(r["mid"]) == pytest.approx(0.32) for r in rows)  # not the later 0.995
     # The CSV rounds to 6 decimals, so the sum can be off by a few millionths.

@@ -49,7 +49,7 @@ SERIES_TZ = {
 FIELDS = [
     "series_ticker", "event_ticker", "market_ticker", "climate_date",
     "bracket", "strike_type", "floor_strike", "cap_strike", "lo_f", "hi_f",
-    "result", "settled_temp_f", "settles_consistently",
+    "result", "settled_temp_f", "settles_consistently", "settlement_source",
     "decision", "decision_local", "decision_utc", "market_state",
     "snapshot_end_utc", "staleness_min",
     "yes_bid", "yes_ask", "spread", "mid", "last_price", "open_interest",
@@ -180,6 +180,18 @@ def bracket_bounds(strike_type: Optional[str], floor_strike: Any,
         return None, math.floor(strike)
     raise ValueError(f"unsupported bracket: strike_type={strike_type!r} "
                      f"floor={floor_strike!r} cap={cap_strike!r}")
+
+
+def settlement_source(rule: Optional[str]) -> str:
+    """Which data source a market's rule settles on. Kalshi's daily-high markets used
+    the NWS Daily Climate Report and later moved to The Weather Company, so a long
+    backfill can span both."""
+    text = (rule or "").lower()
+    if "weather company" in text:
+        return "weather_company"
+    if "national weather service" in text or re.search(r"\bnws\b", text):
+        return "nws"
+    return "unknown"
 
 
 def bracket_contains(lo: Optional[int], hi: Optional[int],
@@ -376,6 +388,7 @@ def build_rows(client, markets: list[dict], decisions: list[Decision], tz: ZoneI
                 "result": result,
                 "settled_temp_f": settled,
                 "settles_consistently": consistent,
+                "settlement_source": settlement_source(m.get("rules_primary")),
                 "decision": decision.label,
                 "decision_local": local_dt.isoformat(),
                 "decision_utc": utc_dt.isoformat(),
@@ -442,11 +455,26 @@ def summarize(markets: list[dict], rows: list[dict], stats: dict,
                            if r.get("settles_consistently") is False})
     groups = {(r["event_ticker"], r["decision"]) for r in rows}
     full = {(r["event_ticker"], r["decision"]) for r in rows if r.get("implied_prob") is not None}
+    days = [d for d in (parse_event_date(e or "") for e in by_event) if d is not None]
+    source_counts: dict[str, int] = defaultdict(int)
+    source_spans: dict[str, tuple[date, date, str]] = {}  # source -> (first, last, example)
+    for m in markets:
+        rule = m.get("rules_primary") or ""
+        source = settlement_source(rule)
+        source_counts[source] += 1
+        day = parse_event_date(m.get("event_ticker", ""))
+        if day is None:
+            continue
+        first, last, example = source_spans.get(source, (day, day, rule))
+        source_spans[source] = (min(first, day), max(last, day), example or rule)
     summary = {
         "markets": len(markets),
         "markets_live_tier": sum(m.get("_source") == "live" for m in markets),
         "markets_historical_tier": sum(m.get("_source") == "historical" for m in markets),
         "days": len(by_event),
+        "first_day": min(days).isoformat() if days else None,
+        "last_day": max(days).isoformat() if days else None,
+        "markets_by_settlement_source": dict(sorted(source_counts.items())),
         "days_without_exactly_one_yes": len(odd_days),
         "brackets_inconsistent_with_settlement": len(inconsistent),
         "rows": len(rows),
@@ -464,9 +492,9 @@ def summarize(markets: list[dict], rows: list[dict], stats: dict,
         print(f"  days to inspect (not exactly one YES bracket): {', '.join(odd_days[:5])}")
     if inconsistent:
         print(f"  brackets to inspect (bounds disagree with result): {', '.join(inconsistent[:5])}")
-    rule = next((m.get("rules_primary") for m in markets if m.get("rules_primary")), None)
-    if rule:
-        print(f"\nSettlement rule of the first market:\n  {rule}")
+    for source in sorted(source_spans):
+        first, last, rule = source_spans[source]
+        print(f"\nSettlement source '{source}': {first} to {last}. Example rule:\n  {rule}")
     return summary
 
 
