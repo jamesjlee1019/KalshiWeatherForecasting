@@ -18,7 +18,7 @@ This script queries both. Market data doesn't need an API key.
 Quick start (from the repo root):
     pip install -r requirements.txt
     python scripts/kalshi_backfill.py --series KXHIGHCHI --limit-days 7          # smoke test
-    python scripts/kalshi_backfill.py --series KXHIGHCHI --decision 0@08:00 -1@16:00
+    python scripts/kalshi_backfill.py --series KXHIGHCHI --decision D0@08:00 D-1@16:00
 """
 from __future__ import annotations
 
@@ -59,7 +59,9 @@ FIELDS = [
 _MONTHS = {m: i for i, m in enumerate(
     ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"], 1)}
 _EVENT_DATE_RE = re.compile(r"-(\d{2})([A-Z]{3})(\d{2})(?=-|$)")
-_DECISION_RE = re.compile(r"^(-?\d+)@(\d{1,2}):(\d{2})$")
+# "D0@08:00" or "D-1@16:00". The leading D matters on the command line: argparse reads
+# any argument that starts with "-" as an option name, so a bare "-1@16:00" fails.
+_DECISION_RE = re.compile(r"^[Dd]?(-?\d+)@(\d{1,2}):(\d{2})$")
 
 
 class KalshiError(RuntimeError):
@@ -205,21 +207,24 @@ def bracket_contains(lo: Optional[int], hi: Optional[int],
 
 @dataclass(frozen=True)
 class Decision:
-    label: str       # e.g. "0@08:00"
+    label: str       # e.g. "D0@08:00"
     day_offset: int  # days relative to the market's climate day
     hour: int
     minute: int
 
 
 def parse_decision(text: str) -> Decision:
+    """Parse D<offset>@HH:MM, e.g. D0@08:00 (8 a.m. that day) or D-1@16:00 (4 p.m. the
+    day before). The D is optional in code but needed on the command line for negative
+    offsets. Labels are normalized to the D form."""
     match = _DECISION_RE.match(text.strip())
     if not match:
         raise argparse.ArgumentTypeError(
-            f"bad decision time {text!r}: use DAY_OFFSET@HH:MM, e.g. 0@08:00 or -1@16:00")
+            f"bad decision time {text!r}: use D<offset>@HH:MM, e.g. D0@08:00 or D-1@16:00")
     offset, hour, minute = (int(g) for g in match.groups())
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         raise argparse.ArgumentTypeError(f"bad clock time in {text!r}")
-    return Decision(text.strip(), offset, hour, minute)
+    return Decision(f"D{offset}@{hour:02d}:{minute:02d}", offset, hour, minute)
 
 
 def decision_datetime(climate_day: date, decision: Decision, tz: ZoneInfo) -> datetime:
@@ -517,15 +522,15 @@ def run(client, series: list[str], decisions: list[Decision], tz: ZoneInfo, out:
 
 # --------------------------------------------------------------------------- CLI
 
-def main(argv: Optional[list[str]] = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Backfill Kalshi daily-high market prices at fixed decision times.")
     parser.add_argument("--series", nargs="+", required=True,
-                        help="series ticker(s), e.g. KXHIGHNY")
+                        help="series ticker(s), e.g. KXHIGHCHI")
     parser.add_argument("--decision", nargs="+", type=parse_decision,
-                        help="DAY_OFFSET@HH:MM in the city's local time, relative to the "
-                             "market's day: 0@08:00 = 8 a.m. that day (default), "
-                             "-1@16:00 = 4 p.m. the day before")
+                        help="D<offset>@HH:MM in the city's local time, relative to the "
+                             "market's day: D0@08:00 = 8 a.m. that day (default), "
+                             "D-1@16:00 = 4 p.m. the day before")
     parser.add_argument("--tz", help="IANA time zone for decision times, e.g. America/New_York "
                                      "(required for series not listed in SERIES_TZ)")
     parser.add_argument("--start", type=date.fromisoformat, help="first climate day, YYYY-MM-DD")
@@ -541,6 +546,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--max-rps", type=float, default=8.0, help="max requests per second")
+    return parser
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.tz:
@@ -555,7 +565,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         summary = run(
             KalshiClient(args.base_url, args.max_rps),
             series=args.series,
-            decisions=args.decision or [parse_decision("0@08:00")],
+            decisions=args.decision or [parse_decision("D0@08:00")],
             tz=ZoneInfo(tz_name),
             out=args.out or Path(f"data/kalshi_{args.series[0]}.csv"),
             period=args.period,

@@ -43,8 +43,10 @@ pip install -r requirements.txt
 python scripts/kalshi_backfill.py --series KXHIGHCHI --limit-days 7
 
 # Full history, priced at 8 a.m. on the day and 4 p.m. the day before (Chicago time)
-python scripts/kalshi_backfill.py --series KXHIGHCHI --decision 0@08:00 -1@16:00
+python scripts/kalshi_backfill.py --series KXHIGHCHI --decision D0@08:00 D-1@16:00
 ```
+
+Decision times are `D<offset>@HH:MM` in Chicago time, relative to the market's day: `D0@08:00` is 8 a.m. on the day, `D-1@16:00` is 4 p.m. the day before.
 
 This writes `data/kalshi_KXHIGHCHI.csv`, with one row per temperature bracket, per day, per decision time. Each row has the bracket's bounds, how it settled, the bid and ask at the decision time, and a market-implied probability (each day's brackets sum to 1). Prices come only from candlesticks that ended at or before the decision time, so nothing from later in the day leaks in. No API key is needed. Raw responses are cached in `data/raw/kalshi/`, so reruns are fast.
 
